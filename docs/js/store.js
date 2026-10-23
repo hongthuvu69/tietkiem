@@ -19,6 +19,7 @@ function blank() {
     rev: 0, // rev lớn nhất đã kéo về
     lastSync: 0,
     alerts: {}, // tuần (ms của Thứ Hai) → "near" | "over": đã cảnh báo trên máy này
+    notify: { on: false, key: "", prefs: { entries: true, alerts: true, weekly: true }, hint: true }, // thông báo đẩy trên máy này
   };
 }
 
@@ -28,7 +29,13 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return base;
     const s = JSON.parse(raw);
-    return { ...base, ...s, me: { ...base.me, ...s.me }, wallet: { ...base.wallet, ...s.wallet } };
+    return {
+      ...base,
+      ...s,
+      me: { ...base.me, ...s.me },
+      wallet: { ...base.wallet, ...s.wallet },
+      notify: { ...base.notify, ...s.notify, prefs: { ...base.notify.prefs, ...(s.notify && s.notify.prefs) } },
+    };
   } catch {
     return base;
   }
@@ -111,8 +118,10 @@ export const store = {
   /** Sổ mới tạo trên máy này; sync.js sẽ tạo nó trên máy chủ. */
   createLocal(code, wallet, myName) {
     const me = { ...s.me, name: myName };
+    const notify = s.notify;
     s = blank();
     s.me = me;
+    s.notify = notify;
     s.code = code;
     s.created = false;
     s.wallet = { ...s.wallet, ...wallet, upd: Date.now() };
@@ -122,8 +131,10 @@ export const store = {
   /** Tham gia sổ đã có (dữ liệu kéo về ngay sau đó bằng applyPull). */
   joinLocal(code, myName) {
     const me = { ...s.me, name: myName };
+    const notify = s.notify;
     s = blank();
     s.me = me;
+    s.notify = notify;
     s.code = code;
     emit("wallet");
   },
@@ -131,9 +142,20 @@ export const store = {
   /** Rời sổ trên máy này. Dữ liệu trên máy chủ vẫn còn, nhập lại mã là có lại. */
   leave() {
     const me = s.me;
+    const notify = { ...s.notify, on: false };
     s = blank();
     s.me = me;
+    s.notify = notify;
     emit("wallet");
+  },
+
+  get notify() {
+    return s.notify;
+  },
+
+  setNotify(patch) {
+    s.notify = { ...s.notify, ...patch, prefs: { ...s.notify.prefs, ...(patch.prefs || {}) } };
+    emit("notify");
   },
 
   setMe(name) {

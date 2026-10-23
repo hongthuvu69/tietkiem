@@ -1,8 +1,9 @@
 // Service worker: cho app mở được khi mất mạng.
 // "Network-first": có mạng thì luôn lấy bản mới nhất (bỏ qua cache HTTP 10 phút của GitHub Pages),
 // mạng chậm quá 3 giây hoặc mất mạng thì dùng bản đã lưu. Dữ liệu sổ không đi qua đây.
-const CACHE = "tietkiem-v1";
+const CACHE = "tietkiem-v2";
 const FONT_CACHE = "tietkiem-fonts"; // font Google: lưu lâu dài, không xóa khi đổi phiên bản
+const META_CACHE = "tietkiem-meta"; // số đếm trên biểu tượng app
 const TIMEOUT_MS = 3000;
 const SHELL = [
   "./",
@@ -16,6 +17,7 @@ const SHELL = [
   "js/charts.js",
   "js/util.js",
   "js/config.js",
+  "js/push.js",
   "icons/icon-192.png",
   "icons/apple-touch-icon.png",
 ];
@@ -33,7 +35,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      for (const key of await caches.keys()) if (key !== CACHE && key !== FONT_CACHE) await caches.delete(key);
+      for (const key of await caches.keys()) if (key !== CACHE && key !== FONT_CACHE && key !== META_CACHE) await caches.delete(key);
       await self.clients.claim();
     })()
   );
@@ -76,4 +78,56 @@ self.addEventListener("fetch", (event) => {
       return cached || (await network) || new Response("Offline", { status: 503 });
     })()
   );
+});
+
+// ---------- Thông báo đẩy ----------
+
+async function badgeCount(set) {
+  const cache = await caches.open(META_CACHE);
+  if (set !== undefined) {
+    await cache.put("badge", new Response(String(set)));
+    return set;
+  }
+  const res = await cache.match("badge");
+  return res ? Number(await res.text()) || 0 : 0;
+}
+
+self.addEventListener("push", (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch {
+    d = { body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(d.title || "Tiết Kiệm Chung", {
+        body: d.body || "",
+        tag: d.tag,
+        icon: "icons/icon-192.png",
+        badge: "icons/icon-192.png",
+        data: { url: d.url || "./" },
+      });
+      if (self.navigator.setAppBadge) {
+        const n = await badgeCount((await badgeCount()) + 1);
+        await self.navigator.setAppBadge(n).catch(() => {});
+      }
+    })()
+  );
+});
+
+// Chạm vào thông báo: mở app (hoặc đưa app đang mở lên trước).
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const c of list) if ("focus" in c) return c.focus();
+      return self.clients.openWindow((event.notification.data && event.notification.data.url) || "./");
+    })()
+  );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data === "clear-badge") event.waitUntil(badgeCount(0));
 });

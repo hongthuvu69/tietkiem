@@ -19,6 +19,7 @@ const entryWire = (e) => ({
   at: e.at,
   upd: e.upd,
   del: e.del,
+  dev: store.me.id, // máy gửi thay đổi: máy chủ không báo lại cho chính máy này
 });
 
 export const sync = {

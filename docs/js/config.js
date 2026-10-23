@@ -3,3 +3,5 @@
 // và phải có đúng mã sổ. TUYỆT ĐỐI không dán secret / service_role key vào đây.
 export const SUPABASE_URL = "https://gbuydsgtsypfepfxmidd.supabase.co";
 export const SUPABASE_KEY = "sb_publishable_PeyXyw3Td0ENT01cswO05w_gls6gAy_";
+// Edge Function gửi thông báo đẩy (supabase/functions/tk-notify).
+export const NOTIFY_URL = SUPABASE_URL + "/functions/v1/tk-notify";

@@ -1766,3 +1766,74 @@ body.no-tabs .toast {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Thông báo đẩy ---------- */
+.notify-on {
+  color: var(--good-ink);
+  font-weight: 700;
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+}
+.switch-row span {
+  font-size: 15px;
+  font-weight: 600;
+}
+.switch-row small {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--sub);
+}
+.switch-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.switch-row i {
+  position: relative;
+  flex-shrink: 0;
+  width: 51px;
+  height: 31px;
+  border-radius: 999px;
+  background: var(--alt);
+  border: 1px solid var(--border);
+  transition: background 0.2s;
+}
+.switch-row i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+.switch-row input:checked + i {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.switch-row input:checked + i::after {
+  transform: translateX(20px);
+}
+.switch-row input:focus-visible + i {
+  box-shadow: var(--ring);
+}
+.notify-hint {
+  background: var(--primary-soft);
+  box-shadow: none;
+}
+.notify-hint p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--sub);
+}

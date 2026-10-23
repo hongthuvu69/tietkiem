@@ -3,6 +3,7 @@ import { store, validAmount, DEFAULT_LIMIT } from "./store.js";
 import { sync, SYNC_MS } from "./sync.js";
 import * as R from "./report.js";
 import { columnChart } from "./charts.js";
+import { push } from "./push.js";
 import {
   money,
   plus,
@@ -299,12 +300,14 @@ function render(scrollTop = false) {
   views[ui.route]();
   updatePill();
   if (ui.mountCharts) ui.mountCharts();
+  if (ui.route === "settings") renderNotifyCard();
+  if (ui.route === "home") renderNotifyHint();
   if (scrollTop) window.scrollTo(0, 0);
 }
 
 function isTyping() {
   const a = document.activeElement;
-  return !!(a && $view.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+  return !!(a && $view.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== "checkbox");
 }
 
 /** Dữ liệu đổi (do mình sửa hoặc máy kia gửi về): vẽ lại, trừ khi đang gõ dở trong màn hình.
@@ -524,6 +527,7 @@ function viewHome() {
       <button class="btn btn-in" data-action="add-in"><b aria-hidden="true">＋</b> Thêm tiền</button>
       <button class="btn btn-out" data-action="add-out"><b aria-hidden="true">－</b> Chi tiêu</button>
     </div>
+    <div id="notify-hint"></div>
     ${weekCard(startOfWeek(now), { link: true })}
     <section class="card month-card" data-action="report-month" role="button" tabindex="0" aria-label="${monthLabel(now)}, xem báo cáo tháng">
       <div class="card-head"><h2>${monthLabel(now)}</h2><span class="link">Báo cáo ›</span></div>
@@ -883,6 +887,11 @@ function viewSettings() {
       <p class="hint">Ai có mã này đều xem và sửa được sổ. Chỉ gửi cho người dùng chung.</p>
     </section>
 
+    <section class="card" id="notify-card">
+      <h2>Thông báo trên iPhone</h2>
+      <div id="notify-body"><p class="hint">Đang kiểm tra…</p></div>
+    </section>
+
     <section class="card">
       <h2>Đồng bộ</h2>
       <div class="kv"><span>Trạng thái</span><b id="sync-detail"></b></div>
@@ -904,6 +913,49 @@ function viewSettings() {
       <p class="hint">Rời sổ chỉ xóa dữ liệu trên iPhone này. Sổ vẫn còn trên máy chủ và iPhone kia, nhập lại mã là có lại.</p>
     </section>
     <p class="foot">Tiết Kiệm Chung · v1.0</p>`;
+}
+
+// ---------- Thông báo đẩy ----------
+
+async function renderNotifyCard() {
+  const box = document.getElementById("notify-body");
+  if (!box) return;
+  const st = await push.status();
+  if (!document.body.contains(box)) return;
+  const p = store.notify.prefs;
+  const sw = (key, label, sub) =>
+    `<label class="switch-row"><span>${label}<small>${sub}</small></span><input type="checkbox" data-pref="${key}" ${p[key] ? "checked" : ""}><i aria-hidden="true"></i></label>`;
+  const html = {
+    install: `<p>Để nhận thông báo, mở app <b>từ biểu tượng trên màn hình chính</b> (Safari → Chia sẻ → Thêm vào MH chính). iPhone cần iOS 16.4 trở lên.</p>`,
+    unsupported: `<p>Trình duyệt này chưa hỗ trợ thông báo đẩy. Trên iPhone cần iOS 16.4 trở lên và mở app từ màn hình chính.</p>`,
+    denied: `<p>Thông báo đang bị chặn. Vào <b>Cài đặt iPhone → Thông báo → Tiết Kiệm</b> để bật lại, rồi quay lại đây.</p>`,
+    off: `<p>Nhận thông báo khi người kia thêm/chi tiền và khi chi gần hoặc quá hạn mức tuần, kể cả lúc không mở app.</p>
+      <button class="btn btn-primary btn-block" data-action="notify-on">🔔 Bật thông báo</button>`,
+    on: `<p class="notify-on"><b aria-hidden="true">✓</b> Đang bật trên máy này</p>
+      ${sw("entries", "Giao dịch mới của người kia", "VD: “Thư vừa chi 350.000đ · Ăn uống”")}
+      ${sw("alerts", "Cảnh báo hạn mức tuần", "Khi chi tới 80% và khi vượt hạn mức")}
+      ${sw("weekly", "Tổng kết tuần", "20:00 tối Chủ Nhật")}
+      <div class="row-btns">
+        <button class="btn" data-action="notify-test">Gửi thử</button>
+        <button class="btn btn-ghost-danger" data-action="notify-off">Tắt thông báo</button>
+      </div>`,
+  };
+  box.innerHTML = html[st] || html.unsupported;
+}
+
+async function renderNotifyHint() {
+  const box = document.getElementById("notify-hint");
+  if (!box || !store.notify.hint) return;
+  const st = await push.status();
+  if (st !== "off" || !document.body.contains(box)) return;
+  box.innerHTML = `<section class="card notify-hint">
+      <b>🔔 Bật thông báo?</b>
+      <p>Biết ngay khi người kia chi tiêu và khi tuần này sắp vượt hạn mức, kể cả lúc không mở app.</p>
+      <div class="row-btns">
+        <button class="btn" data-action="notify-hint-close">Để sau</button>
+        <button class="btn btn-primary" data-action="notify-on">Bật thông báo</button>
+      </div>
+    </section>`;
 }
 
 // ---------- Bảng thêm / sửa giao dịch ----------
@@ -1239,6 +1291,28 @@ document.addEventListener("click", async (ev) => {
     }
     case "export":
       return exportCsv();
+    case "notify-on":
+      // Phải gọi ngay trong lúc chạm nút: iPhone chỉ cho xin quyền thông báo khi đó.
+      t.disabled = true;
+      return push
+        .enable()
+        .then(() => toast("Đã bật thông báo trên máy này 🔔"))
+        .catch((e) => toast(e.message || "Không bật được thông báo"))
+        .finally(() => render());
+    case "notify-off":
+      return push
+        .disable()
+        .then(() => toast("Đã tắt thông báo trên máy này"))
+        .finally(() => render());
+    case "notify-test":
+      t.disabled = true;
+      return push
+        .test()
+        .then(() => toast("Đã gửi thử, thông báo sẽ hiện sau vài giây"))
+        .catch((e) => toast(e.message))
+        .finally(() => (t.disabled = false));
+    case "notify-hint-close":
+      return store.setNotify({ hint: false });
     case "leave": {
       const pend = store.pendingCount;
       const yes = await confirmBox({
@@ -1250,6 +1324,7 @@ document.addEventListener("click", async (ev) => {
         danger: true,
       });
       if (!yes) return;
+      await push.disable().catch(() => {});
       store.leave();
       ui.welcomeTab = "join";
       go("home");
@@ -1322,6 +1397,16 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
+document.addEventListener("change", (ev) => {
+  const pref = ev.target.dataset && ev.target.dataset.pref;
+  if (pref) push.setPrefs({ [pref]: ev.target.checked }).catch((e) => toast(e.message || "Không lưu được lựa chọn"));
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") push.clearBadge();
+});
+
 route();
 sync.start();
 setTimeout(checkWeekAlert, 600);
+push.clearBadge();
+push.refresh();

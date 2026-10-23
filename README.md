@@ -48,6 +48,30 @@ Chạy lại file này nhiều lần cũng không sao: nó không xóa dữ li�
 
 Ai có mã sổ thì xem và sửa được sổ, nên chỉ gửi mã cho người dùng chung.
 
+## Thông báo trên iPhone
+
+App gửi thông báo đẩy (Web Push) như app thường, kể cả khi đang tắt app:
+- **Giao dịch mới của người kia**, ví dụ "Thư vừa chi 350.000đ · 🍜 Ăn uống · Số dư: …". Chỉ máy kia nhận, máy vừa nhập thì không.
+- **Cảnh báo hạn mức tuần**: khi chi tới 80% và khi vượt (kèm danh mục chi nhiều nhất). Mỗi mức báo một lần mỗi tuần.
+- **Tổng kết tuần** lúc 20:00 tối Chủ Nhật.
+- Số đỏ trên biểu tượng app khi có thông báo chưa xem.
+
+Cần iPhone **iOS 16.4 trở lên** và mở app **từ màn hình chính**.
+
+### Cài đặt máy chủ (1 lần)
+
+1. **Chạy lại toàn bộ** [`supabase/schema.sql`](supabase/schema.sql) trong SQL Editor (an toàn, không mất dữ liệu). Lần này file thêm bảng lưu máy nhận thông báo, trigger, và bật `pg_net`, `pg_cron`.
+2. Tạo Edge Function: Supabase Dashboard → **Edge Functions** → **Deploy a new function** → **Via Editor**.
+   - Đặt tên **`tk-notify`** (đúng tên này).
+   - Xóa code mẫu, dán toàn bộ [`supabase/functions/tk-notify/index.ts`](supabase/functions/tk-notify/index.ts), bấm **Deploy**.
+3. Mở function `tk-notify` → **Details**. **Tắt** mục *Verify JWT* (tên có thể là *Enforce JWT verification* hoặc *Verify JWT with legacy secret*), rồi **Save**. Bước này cần vì trigger và app gọi hàm mà không đăng nhập. Hàm tự chống gửi trùng nên không bị lạm dụng.
+
+Không cần tạo khóa gì: lần chạy đầu, hàm tự tạo cặp khóa VAPID và lưu trong bảng `tk_config`.
+
+### Trên mỗi iPhone
+
+**Cài đặt** → thẻ **Thông báo trên iPhone** → **Bật thông báo** → **Cho phép**. Sau đó bấm **Gửi thử** để kiểm tra. Có thể tắt từng loại thông báo bằng công tắc.
+
 ## Đồng bộ hoạt động thế nào
 
 - Mỗi giao dịch có một mã riêng do máy tạo ra, nên gửi lại nhiều lần cũng không bị trùng.
@@ -68,7 +92,9 @@ Ai có mã sổ thì xem và sửa được sổ, nên chỉ gửi mã cho ngư�
 | `docs/js/app.js` | Giao diện các tab, bảng thêm/sửa giao dịch, cảnh báo |
 | `docs/js/config.js` | Địa chỉ Supabase và publishable key (được phép công khai) |
 | `docs/sw.js` | Service worker để app mở được khi mất mạng |
-| `supabase/schema.sql` | Bảng, bảo mật và 3 hàm API |
+| `supabase/schema.sql` | Bảng, bảo mật, hàm API, trigger thông báo |
+| `supabase/functions/tk-notify/index.ts` | Edge Function gửi thông báo đẩy (mã hóa RFC 8291, ký VAPID) |
+| `docs/js/push.js` | Bật/tắt thông báo trên máy, gửi thử, xóa số đỏ trên biểu tượng |
 | `tools/serve.js` | Server để thử app trên máy: `node tools/serve.js` → <http://localhost:8090> |
 | `tools/make_icons.js` | Vẽ lại icon app: `node tools/make_icons.js` |
 
